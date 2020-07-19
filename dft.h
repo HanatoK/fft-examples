@@ -29,6 +29,7 @@ vector<complex<double>> fourierTransform(const vector<complex<double>>& input) {
 }
 
 complex<double> fastFourierTransform(const vector<complex<double>>& input,
+                                     const vector<complex<double>>& factors,
                                      size_t k, size_t read_start, size_t read_stride, size_t N) {
     using namespace std::complex_literals;
     complex<double> rN(0, 0);
@@ -40,21 +41,19 @@ complex<double> fastFourierTransform(const vector<complex<double>>& input,
         }
         return rN;
     } else {
-        const complex<double> factor(0, -1.0 * 2.0 * M_PI * k / N);
+        const complex<double> factor2 = std::exp(complex<double>(0, -1.0 * 2.0 * M_PI * k / N));
         if (N <= FFT_MIN_N) {
             complex<double> rN_odd(0, 0);
             complex<double> rN_even(0, 0);
             for (size_t j = 0; j < N / 2; ++j) {
-                const complex<double> tmp(0, -1.0 * j * 2.0 * M_PI * k / (N / 2));
-                const complex<double> factor2 = std::exp(tmp);
-                rN_even += input[read_start + 2 * j * read_stride] * factor2;
-                rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factor2;
+                rN_even += input[read_start + 2 * j * read_stride] * factors[j];
+                rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factors[j];
             }
-            rN = rN_even + rN_odd * std::exp(factor);
+            rN = rN_even + rN_odd * factor2;
         } else {
-            rN = fastFourierTransform(input, k, read_start, read_stride * 2, N / 2)
-               + fastFourierTransform(input, k, read_start + read_stride, read_stride * 2, N / 2)
-               * std::exp(factor);
+            rN = fastFourierTransform(input, factors, k, read_start, read_stride * 2, N / 2)
+               + fastFourierTransform(input, factors, k, read_start + read_stride, read_stride * 2, N / 2)
+               * factor2;
         }
         return rN;
     }
@@ -64,8 +63,12 @@ vector<complex<double>> fastFourierTransform(const vector<complex<double>>& inpu
     using namespace std::complex_literals;
     const size_t N = input.size();
     vector<complex<double>> result(N);
+    vector<vector<complex<double>>> factors_table(N, vector<complex<double>>(FFT_MIN_N/2));
     for (size_t k = 0; k < N; ++k) {
-        result[k] = fastFourierTransform(input, k, 0, 1, N);
+        for (size_t i = 0; i < FFT_MIN_N/2; ++i) {
+            factors_table[k][i] = std::exp(complex<double>(0, -1.0 * i * 2.0 * M_PI * k / (FFT_MIN_N / 2)));
+        }
+        result[k] = fastFourierTransform(input, factors_table[k], k, 0, 1, N);
     }
     return result;
 }
@@ -94,7 +97,9 @@ vector<complex<double>> reverseFourierTransform(const vector<complex<double>>& i
     return result;
 }
 
-complex<double> reverseFastFourierTransform(const vector<complex<double>>& input, size_t k, size_t read_start, size_t read_stride, size_t N) {
+complex<double> reverseFastFourierTransform(const vector<complex<double>>& input,
+                                            const vector<complex<double>>& factors,
+                                            size_t k, size_t read_start, size_t read_stride, size_t N) {
     using namespace std::complex_literals;
     complex<double> rN(0, 0);
     if (N % 2 != 0) {
@@ -104,21 +109,19 @@ complex<double> reverseFastFourierTransform(const vector<complex<double>>& input
         }
         return rN;
     } else {
-        const complex<double> factor(0, 1.0 * 2.0 * M_PI * k / N);
+        const complex<double> factor2 = std::exp(complex<double>(0, 1.0 * 2.0 * M_PI * k / N));
         if (N <= FFT_MIN_N) {
             complex<double> rN_odd(0, 0);
             complex<double> rN_even(0, 0);
             for (size_t j = 0; j < N / 2; ++j) {
-                const complex<double> tmp(0, 1.0 * j * 2.0 * M_PI * k / (N / 2));
-                const complex<double> factor2 = std::exp(tmp);
-                rN_even += input[read_start + 2 * j * read_stride] * factor2;
-                rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factor2;
+                rN_even += input[read_start + 2 * j * read_stride] * factors[j];
+                rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factors[j];
             }
-            rN = rN_even + rN_odd * std::exp(factor);
+            rN = rN_even + rN_odd * factor2;
         } else {
-            rN = reverseFastFourierTransform(input, k, read_start, read_stride * 2, N / 2)
-               + reverseFastFourierTransform(input, k, read_start + read_stride, read_stride * 2, N / 2)
-               * std::exp(factor);
+            rN = reverseFastFourierTransform(input, factors, k, read_start, read_stride * 2, N / 2)
+               + reverseFastFourierTransform(input, factors, k, read_start + read_stride, read_stride * 2, N / 2)
+               * factor2;
         }
         return rN;
     }
@@ -128,8 +131,12 @@ vector<complex<double>> reverseFastFourierTransform(const vector<complex<double>
     using namespace std::complex_literals;
     const size_t N = input.size();
     vector<complex<double>> result(N);
+    vector<vector<complex<double>>> factors_table(N, vector<complex<double>>(FFT_MIN_N/2));
     for (size_t k = 0; k < N; ++k) {
-        result[k] = reverseFastFourierTransform(input, k, 0, 1, N);
+        for (size_t i = 0; i < FFT_MIN_N/2; ++i) {
+            factors_table[k][i] = std::exp(complex<double>(0, 1.0 * i * 2.0 * M_PI * k / (FFT_MIN_N / 2)));
+        }
+        result[k] = reverseFastFourierTransform(input, factors_table[k], k, 0, 1, N);
     }
     return result;
 }
