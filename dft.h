@@ -20,8 +20,8 @@ vector<complex<double>> fourierTransform(const vector<complex<double>>& input) {
     for (size_t k = 0; k < N; ++k) {
         complex<double> rN(0, 0);
         for (size_t j = 0; j < N; ++j) {
-            const double tmp = -1.0 * j * 2.0 * M_PI * k / N;
-            rN += input[j] * (std::cos(tmp) + complex<double>(0, std::sin(tmp)));
+            const complex<double> tmp(0, -1.0 * j * 2.0 * M_PI * k / N);
+            rN += input[j] * std::exp(tmp);
         }
         result[k] = rN;
     }
@@ -34,28 +34,27 @@ complex<double> fastFourierTransform(const vector<complex<double>>& input,
     complex<double> rN(0, 0);
     if (N % 2 != 0) {
         for (size_t j = 0; j < N; ++j) {
-            const double tmp = -1.0 * j * 2.0 * M_PI * k / N;
+            const complex<double> tmp(0, -1.0 * j * 2.0 * M_PI * k / N);
             rN += input[read_start + j * read_stride]
-                * (std::cos(tmp) + complex<double>(0, std::sin(tmp)));
+                * std::exp(tmp);
         }
         return rN;
     } else {
+        const complex<double> factor(0, -1.0 * 2.0 * M_PI * k / N);
         if (N <= FFT_MIN_N) {
-            const double factor = -1.0 * 2.0 * M_PI * k / N;
             complex<double> rN_odd(0, 0);
             complex<double> rN_even(0, 0);
             for (size_t j = 0; j < N / 2; ++j) {
-                const double tmp = -1.0 * j * 2.0 * M_PI * k / (N / 2);
-                const complex<double> factor2 = std::cos(tmp) + complex<double>(0, std::sin(tmp));
+                const complex<double> tmp(0, -1.0 * j * 2.0 * M_PI * k / (N / 2));
+                const complex<double> factor2 = std::exp(tmp);
                 rN_even += input[read_start + 2 * j * read_stride] * factor2;
                 rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factor2;
             }
-            rN = rN_even + rN_odd * (std::cos(factor) + complex<double>(0, std::sin(factor)));
+            rN = rN_even + rN_odd * std::exp(factor);
         } else {
-            const double factor = -1.0 * 2.0 * M_PI * k / N;
             rN = fastFourierTransform(input, k, read_start, read_stride * 2, N / 2)
                + fastFourierTransform(input, k, read_start + read_stride, read_stride * 2, N / 2)
-               * (std::cos(factor) + complex<double>(0, std::sin(factor)));
+               * std::exp(factor);
         }
         return rN;
     }
@@ -87,8 +86,8 @@ vector<complex<double>> reverseFourierTransform(const vector<complex<double>>& i
     for (size_t i = 0; i < N; ++i) {
         complex<double> rN(0, 0);
         for (size_t j = 0; j < N; ++j) {
-            double tmp = 1.0 * j * 2.0 * M_PI * i / N;
-            rN += input[j] * (std::cos(tmp) + complex<double>(0, std::sin(tmp)));
+            const complex<double> tmp(0, 1.0 * j * 2.0 * M_PI * i / N);
+            rN += input[j] * std::exp(tmp);
         }
         result[i] = rN;
     }
@@ -100,27 +99,26 @@ complex<double> reverseFastFourierTransform(const vector<complex<double>>& input
     complex<double> rN(0, 0);
     if (N % 2 != 0) {
         for (size_t j = 0; j < N; ++j) {
-            const double tmp = 1.0 * j * 2.0 * M_PI * k / N;
-            rN += input[read_start + j * read_stride] * (std::cos(tmp) + complex<double>(0, std::sin(tmp)));
+            const complex<double> tmp(0, 1.0 * j * 2.0 * M_PI * k / N);
+            rN += input[read_start + j * read_stride] * std::exp(tmp);
         }
         return rN;
     } else {
+        const complex<double> factor(0, 1.0 * 2.0 * M_PI * k / N);
         if (N <= FFT_MIN_N) {
-            const double factor = 1.0 * 2.0 * M_PI * k / N;
             complex<double> rN_odd(0, 0);
             complex<double> rN_even(0, 0);
             for (size_t j = 0; j < N / 2; ++j) {
-                const double tmp = 1.0 * j * 2.0 * M_PI * k / (N / 2);
-                const complex<double> factor2 = std::cos(tmp) + complex<double>(0, std::sin(tmp));
+                const complex<double> tmp(0, 1.0 * j * 2.0 * M_PI * k / (N / 2));
+                const complex<double> factor2 = std::exp(tmp);
                 rN_even += input[read_start + 2 * j * read_stride] * factor2;
                 rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factor2;
             }
-            rN = rN_even + rN_odd * (std::cos(factor) + complex<double>(0, std::sin(factor)));
+            rN = rN_even + rN_odd * std::exp(factor);
         } else {
-            const double factor = 1.0 * 2.0 * M_PI * k / N;
             rN = reverseFastFourierTransform(input, k, read_start, read_stride * 2, N / 2)
                + reverseFastFourierTransform(input, k, read_start + read_stride, read_stride * 2, N / 2)
-               * (std::cos(factor) + complex<double>(0, std::sin(factor)));
+               * std::exp(factor);
         }
         return rN;
     }
