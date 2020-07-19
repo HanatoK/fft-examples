@@ -232,14 +232,30 @@ void gpu_fft_2() {
   //TODO
 }
 
-void me_dft() {
-    InputData<double> input(128, 64);
-    const auto inputMatrix = input.getMatrix2D();
-    writeToFile(inputMatrix, "me_input.dat");
-    vector<vector<complex<double>>> fft_result = fourierTransform2D(inputMatrix);
-    writeToFile(fft_result, "me.dat");
-    vector<vector<complex<double>>> rfft_result = reverseFourierTransform2D(fft_result);
-    writeToFile(rfft_result, "me_c2r.dat");
+void me_fft(int filename_index, double factor = 2.0) {
+  const std::string inputdata_filename = std::string{"me_fft_input"} + std::to_string(filename_index) + std::string{".dat"};
+  const std::string r2c_output_filename = std::string{"me_fft_output"} + std::to_string(filename_index) + std::string{"_r2c.dat"};
+  const std::string c2r_output_filename = std::string{"me_fft_output"} + std::to_string(filename_index) + std::string{"_c2r.dat"};
+  InputData<double> input(128, 64, factor);
+  const auto inputMatrix = input.getMatrix2D();
+  writeToFile(inputMatrix, inputdata_filename.c_str());
+  vector<vector<complex<double>>> fft_result = fastFourierTransform2D(inputMatrix);
+  writeToFile(fft_result, r2c_output_filename.c_str());
+  vector<vector<complex<double>>> rfft_result = reverseFastFourierTransform2D(fft_result);
+  writeToFile(rfft_result, c2r_output_filename.c_str());
+}
+
+void me_dft(int filename_index, double factor = 2.0) {
+  const std::string inputdata_filename = std::string{"me_dft_input"} + std::to_string(filename_index) + std::string{".dat"};
+  const std::string r2c_output_filename = std::string{"me_dft_output"} + std::to_string(filename_index) + std::string{"_r2c.dat"};
+  const std::string c2r_output_filename = std::string{"me_dft_output"} + std::to_string(filename_index) + std::string{"_c2r.dat"};
+  InputData<double> input(128, 64, factor);
+  const auto inputMatrix = input.getMatrix2D();
+  writeToFile(inputMatrix, inputdata_filename.c_str());
+  vector<vector<complex<double>>> fft_result = fourierTransform2D(inputMatrix);
+  writeToFile(fft_result, r2c_output_filename.c_str());
+  vector<vector<complex<double>>> rfft_result = reverseFourierTransform2D(fft_result);
+  writeToFile(rfft_result, c2r_output_filename.c_str());
 }
 
 void cpu_fft_2() {
@@ -307,7 +323,10 @@ int main() {
   cpu_fft(1, 2.0);
   cpu_fft(2, 1.5);
   gpu_fft();
-  me_dft();
+  me_dft(1, 2.0);
+  me_dft(2, 1.5);
+  me_fft(1, 2.0);
+  me_fft(2, 1.5);
   cpu_fft_2();
   return 0;
 }
