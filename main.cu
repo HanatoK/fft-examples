@@ -320,13 +320,13 @@ void cpu_fft_2() {
 }
 
 int main() {
-  cpu_fft(1, 2.0);
-  cpu_fft(2, 1.5);
-  gpu_fft();
-  me_dft(1, 2.0);
-  me_dft(2, 1.5);
+//   cpu_fft(1, 2.0);
+//   cpu_fft(2, 1.5);
+//   gpu_fft();
+//   me_dft(1, 2.0);
+//   me_dft(2, 1.5);
   me_fft(1, 2.0);
   me_fft(2, 1.5);
-  cpu_fft_2();
+//   cpu_fft_2();
   return 0;
 }
