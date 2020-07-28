@@ -50,7 +50,6 @@ complex<double> fastFourierTransform(const vector<complex<double>>& input,
                 rN_even += input[read_start + 2 * j * read_stride] * factors[j];
                 rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factors[j];
             }
-            
         } else {
             const complex<double> new_factor2 = factor2 * factor2;
             rN_even = fastFourierTransform(input, factors, new_factor2, k, read_start, read_stride * 2, N / 2, even_saved, odd_saved);
