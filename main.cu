@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <fftw3.h>
 #include <cstring>
+#include <random>
+#include <chrono>
 
 #include "cufft.h"
 #include "dft.h"
@@ -319,6 +321,32 @@ void cpu_fft_2() {
   fftw_destroy_plan(plan2d_many_backward);
 }
 
+void test_radix3() {
+  vector<double> input(19683, 0);
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<> dis(-10,10);
+  for (auto& i : input) {
+    i = dis(gen);
+  }
+  auto start1 = std::chrono::high_resolution_clock::now();
+  const auto output_radix3 = fastFourierTransform_radix3(input);
+  auto end1 = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = end1 - start1;
+  std::cout << "radix3: " << diff.count() << " s.\n";
+  start1 = std::chrono::high_resolution_clock::now();
+  const auto output_dft = fourierTransform(input);
+  end1 = std::chrono::high_resolution_clock::now();
+  diff = end1 - start1;
+  std::cout << "dft: " << diff.count() << " s.\n";
+  complex<double> sum(0, 0);
+  for (size_t i = 0; i < output_dft.size(); ++i) {
+    auto diff = output_radix3[i] - output_dft[i];
+    sum += diff * std::conj(diff);
+  }
+  std::cout << "Error: " << sum << std::endl;
+}
+
 int main() {
 //   cpu_fft(1, 2.0);
 //   cpu_fft(2, 1.5);
@@ -328,5 +356,6 @@ int main() {
   me_fft(1, 2.0);
   me_fft(2, 1.5);
 //   cpu_fft_2();
+  test_radix3();
   return 0;
 }
