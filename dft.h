@@ -12,7 +12,7 @@ using std::vector;
 using std::cout;
 
 const size_t FFT_MIN_N = size_t(std::pow(2,4));
-const size_t FFT_RADIX_3_MIN_N = size_t(std::pow(3,3));
+const size_t FFT_RADIX_3_MIN_N = size_t(std::pow(3,4));
 
 vector<complex<double>> fourierTransform(const vector<complex<double>>& input) {
     using namespace std::complex_literals;
@@ -46,7 +46,7 @@ complex<double> fastFourierTransform(const vector<complex<double>>& input,
         }
         return rN;
     } else {
-        if (N == FFT_MIN_N) {
+        if (N <= FFT_MIN_N) {
             for (size_t j = 0; j < N / 2; ++j) {
                 rN_even += input[read_start + 2 * j * read_stride] * factors[j];
                 rN_odd  += input[read_start + (2 * j + 1) * read_stride] * factors[j];
@@ -85,7 +85,7 @@ complex<double> fastFourierTransform_radix3(
     }
     return rN;
   } else {
-    if (N == FFT_RADIX_3_MIN_N) {
+    if (N <= FFT_RADIX_3_MIN_N) {
       for (size_t j = 0; j < N / 3; ++j) {
         rN0 += input[read_start + 3 * j * read_stride] * factors[j];
         rN1 += input[read_start + (3 * j + 1) * read_stride] * factors[j];
