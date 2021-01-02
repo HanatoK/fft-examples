@@ -329,22 +329,33 @@ void test_radix3() {
   for (auto& i : input) {
     i = dis(gen);
   }
+  // recursive radix3
   auto start1 = std::chrono::high_resolution_clock::now();
   const auto output_radix3 = fastFourierTransform_radix3(input);
   auto end1 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end1 - start1;
-  std::cout << "radix3: " << diff.count() << " s.\n";
+  std::cout << "Recursive radix3 FFT: " << diff.count() << " s.\n";
+  // iterative radix3
+  start1 = std::chrono::high_resolution_clock::now();
+  const auto output_radix3_iterative = fastFourierTransform_radix3_iterative(input);
+  end1 = std::chrono::high_resolution_clock::now();
+  diff = end1 - start1;
+  std::cout << "Iterative radix3 FFT: " << diff.count() << " s.\n";
   start1 = std::chrono::high_resolution_clock::now();
   const auto output_dft = fourierTransform(input);
   end1 = std::chrono::high_resolution_clock::now();
   diff = end1 - start1;
-  std::cout << "dft: " << diff.count() << " s.\n";
-  complex<double> sum(0, 0);
+  std::cout << "DFT: " << diff.count() << " s.\n";
+  complex<double> sum1(0, 0);
+  complex<double> sum2(0, 0);
   for (size_t i = 0; i < output_dft.size(); ++i) {
-    auto diff = output_radix3[i] - output_dft[i];
-    sum += diff * std::conj(diff);
+    auto diff_radix = output_radix3[i] - output_dft[i];
+    auto diff_radix_iterative = output_radix3_iterative[i] - output_dft[i];
+    sum1 += diff_radix * std::conj(diff_radix);
+    sum2 += diff_radix_iterative * std::conj(diff_radix_iterative);
   }
-  std::cout << "Error: " << sum << std::endl;
+  std::cout << "Error(recursive): " << sum1.real() << std::endl;
+  std::cout << "Error(iterative): " << sum2.real() << std::endl;
 }
 
 int main() {
