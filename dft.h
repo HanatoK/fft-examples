@@ -86,11 +86,22 @@ complex<double> fastFourierTransform_radix3(
     return rN;
   } else {
     if (N <= FFT_RADIX_3_MIN_N) {
+//       std::cout << "Before sum: rN0 = " << rN0 << " ; rN1 = " << rN1 << " ; rN2 = " << rN2 << std::endl;
       for (size_t j = 0; j < N / 3; ++j) {
+//         std::cout << "j = " << j << " ; index = " << read_start + 3 * j * read_stride;
+//         std::cout << " ; input[0] = " << input[read_start + 3 * j * read_stride]
+//                   << " ; input[1] = " << input[read_start + (3 * j + 1) * read_stride]
+//                   << " ; input[2] = " << input[read_start + (3 * j + 2) * read_stride]
+//                   << " ; factors = " << factors[j]
+//                   << std::endl;
         rN0 += input[read_start + 3 * j * read_stride] * factors[j];
         rN1 += input[read_start + (3 * j + 1) * read_stride] * factors[j];
         rN2 += input[read_start + (3 * j + 2) * read_stride] * factors[j];
+
       }
+//       std::cout << label << ": k = " << k << " ; N = " << N << " ; read_start = " << read_start << " ; read_stride = " << read_stride;
+//       std::cout << " ; rN0 = " << rN0 << " ; rN1 = " << rN1 << " ; rN2 = " << rN2 << std::endl;
+//       printf("read_start = %lu ; read_stride = %lu\n", read_start, read_stride);
     } else {
       const complex<double> new_factor2 = factor2 * factor2 * factor2;
       const size_t new_stride = read_stride * 3;
@@ -99,6 +110,66 @@ complex<double> fastFourierTransform_radix3(
       rN1 = fastFourierTransform_radix3(input, factors, new_factor2, k, read_start + read_stride, new_stride, new_N, saved0, saved1, saved2);
       rN2 = fastFourierTransform_radix3(input, factors, new_factor2, k, read_start + read_stride * 2, new_stride, new_N, saved0, saved1, saved2);
     }
+    rN = rN0 + rN1 * factor2 + rN2 * factor2 * factor2;
+    saved0 = rN0;
+    saved1 = rN1;
+    saved2 = rN2;
+    return rN;
+  }
+}
+
+complex<double> fastFourierTransform_radix3_iterative(
+  const vector<complex<double>>& input,
+  const vector<complex<double>>& factors,
+  complex<double> factor2,
+  size_t k, size_t N,
+  complex<double>& saved0, complex<double>& saved1, complex<double>& saved2) {
+  complex<double> rN(0, 0);
+  complex<double> rN0(0, 0);
+  complex<double> rN1(0, 0);
+  complex<double> rN2(0, 0);
+  const size_t read_start = 0;
+  const size_t read_stride = 1;
+  if (N % 3 != 0) {
+//     if (N % 2 == 0) {
+//       // TODO: radix-2 fft
+//     }
+    for (size_t j = 0; j < N; ++j) {
+      const complex<double> tmp(0, -1.0 * j * 2.0 * M_PI * k / N);
+      rN += input[read_start + j * read_stride]
+          * std::exp(tmp);
+    }
+    return rN;
+  } else {
+    // TODO: make these things iterative
+    const complex<double> new_factor2 = factor2 * factor2 * factor2;
+    complex<double> rNTmp0(0, 0);
+    complex<double> rNTmp1(0, 0);
+    complex<double> rNTmp2(0, 0);
+    for (size_t j = 0; j < N / 9; ++j) {
+      rNTmp0 += input[read_start + read_stride * 0 + (3 * j + 0) * read_stride * 3] * factors[j];
+      rNTmp1 += input[read_start + read_stride * 0 + (3 * j + 1) * read_stride * 3] * factors[j];
+      rNTmp2 += input[read_start + read_stride * 0 + (3 * j + 2) * read_stride * 3] * factors[j];
+    }
+    rN0 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
+    rNTmp0 = complex<double>(0, 0);
+    rNTmp1 = complex<double>(0, 0);
+    rNTmp2 = complex<double>(0, 0);
+    for (size_t j = 0; j < N / 9; ++j) {
+      rNTmp0 += input[read_start + read_stride * 1 + (3 * j + 0) * read_stride * 3] * factors[j];
+      rNTmp1 += input[read_start + read_stride * 1 + (3 * j + 1) * read_stride * 3] * factors[j];
+      rNTmp2 += input[read_start + read_stride * 1 + (3 * j + 2) * read_stride * 3] * factors[j];
+    }
+    rN1 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
+    rNTmp0 = complex<double>(0, 0);
+    rNTmp1 = complex<double>(0, 0);
+    rNTmp2 = complex<double>(0, 0);
+    for (size_t j = 0; j < N / 9; ++j) {
+      rNTmp0 += input[read_start + read_stride * 2 + (3 * j + 0) * read_stride * 3] * factors[j];
+      rNTmp1 += input[read_start + read_stride * 2 + (3 * j + 1) * read_stride * 3] * factors[j];
+      rNTmp2 += input[read_start + read_stride * 2 + (3 * j + 2) * read_stride * 3] * factors[j];
+    }
+    rN2 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
     rN = rN0 + rN1 * factor2 + rN2 * factor2 * factor2;
     saved0 = rN0;
     saved1 = rN1;
@@ -149,6 +220,30 @@ vector<complex<double>> fastFourierTransform_radix3(const vector<complex<double>
   return result;
 }
 
+vector<complex<double>> fastFourierTransform_radix3_iterative(const vector<complex<double>>& input) {
+//   std::cout << "Main fft radix entry\n";
+  using namespace std::complex_literals;
+  const size_t N = input.size();
+  vector<complex<double>> result(N);
+  vector<complex<double>> factors_table(N/9);
+  const complex<double> f23 = std::exp(complex<double>(0, -2.0 / 3.0 * M_PI));
+  const complex<double> f43 = std::exp(complex<double>(0, -4.0 / 3.0 * M_PI));
+  const complex<double> f83 = std::exp(complex<double>(0, -8.0 / 3.0 * M_PI));
+  complex<double> r0(0, 0);
+  complex<double> r1(0, 0);
+  complex<double> r2(0, 0);
+  for (size_t k = 0; k < N / 3; ++k) {
+    for (size_t i = 0; i < N/9; ++i) {
+      factors_table[i] = std::exp(complex<double>(0, -1.0 * i * 2.0 * M_PI * k / (N / 9)));
+    }
+    const complex<double> factor2 = std::exp(complex<double>(0, -1.0 * 2.0 * M_PI * k / N));
+    result[k] = fastFourierTransform_radix3_iterative(input, factors_table, factor2, k, N, r0, r1, r2);
+    result[k + N / 3] = r0 + r1 * factor2 * f23 + r2 * factor2 * factor2 * f43;
+    result[k + 2 * N / 3] = r0 + r1 * factor2 * f43 + r2 * factor2 * factor2 * f83;
+  }
+  return result;
+}
+
 vector<complex<double>> fastFourierTransform(const vector<double>& input) {
     using namespace std::complex_literals;
     vector<complex<double>> complex_input(input.size());
@@ -165,6 +260,15 @@ vector<complex<double>> fastFourierTransform_radix3(const vector<double>& input)
         complex_input[i] = complex<double>(input[i], 0.0);
     }
     return fastFourierTransform_radix3(complex_input);
+}
+
+vector<complex<double>> fastFourierTransform_radix3_iterative(const vector<double>& input) {
+    using namespace std::complex_literals;
+    vector<complex<double>> complex_input(input.size());
+    for (size_t i = 0; i < input.size(); ++i) {
+        complex_input[i] = complex<double>(input[i], 0.0);
+    }
+    return fastFourierTransform_radix3_iterative(complex_input);
 }
 
 vector<complex<double>> reverseFourierTransform(const vector<complex<double>>& input) {
