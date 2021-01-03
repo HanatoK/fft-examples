@@ -12,7 +12,8 @@ using std::vector;
 using std::cout;
 
 const size_t FFT_MIN_N = size_t(std::pow(2,4));
-const size_t FFT_RADIX_3_MIN_N = size_t(std::pow(3,4));
+const size_t FFT_RADIX_3_POWER = 4;
+const size_t FFT_RADIX_3_MIN_N = size_t(std::pow(3,FFT_RADIX_3_POWER));
 
 vector<complex<double>> fourierTransform(const vector<complex<double>>& input) {
     using namespace std::complex_literals;
@@ -118,6 +119,32 @@ complex<double> fastFourierTransform_radix3(
   }
 }
 
+template <int N, typename T>
+void radix_reorder_helper(std::vector<T> input, std::vector<T>& output,
+                           size_t start, size_t stride) {
+  //TODO: on-place reorder, avoid copy. Is that possible?
+  const size_t sub_stride = stride / N;
+  for (size_t l = 0; l < N; ++l) {
+    for (size_t k = l * sub_stride; k < (l + 1) * sub_stride; ++k) {
+      output[k + start] = input[start + N * (k - sub_stride * l) + l];
+    }
+  }
+}
+
+template <int N, typename T>
+std::vector<T> radix_reorder(const std::vector<T>& input, size_t count) {
+  const size_t total_size = input.size();
+  std::vector<T> output = input;
+  for (size_t i = 0; i < count; ++i) {
+    size_t reorder_stride = total_size / std::pow(N, i);
+    for (size_t j = 0; j < std::pow(N, i); ++j) {
+      size_t reorder_start = j * reorder_stride;
+      radix_reorder_helper<N>(output, output, reorder_start, reorder_stride);
+    }
+  }
+  return output;
+}
+
 complex<double> fastFourierTransform_radix3_iterative(
   const vector<complex<double>>& input,
   const vector<complex<double>>& factors,
@@ -128,9 +155,9 @@ complex<double> fastFourierTransform_radix3_iterative(
   complex<double> rN0(0, 0);
   complex<double> rN1(0, 0);
   complex<double> rN2(0, 0);
-  const size_t read_start = 0;
-  const size_t read_stride = 1;
-  if (N % 3 != 0) {
+  size_t read_start = 0;
+  size_t read_stride = 1;
+  if (N % 3 != 0 || N < FFT_RADIX_3_MIN_N) {
 //     if (N % 2 == 0) {
 //       // TODO: radix-2 fft
 //     }
@@ -141,40 +168,92 @@ complex<double> fastFourierTransform_radix3_iterative(
     }
     return rN;
   } else {
-    // TODO: make these things iterative
-    const complex<double> new_factor2 = factor2 * factor2 * factor2;
-    complex<double> rNTmp0(0, 0);
-    complex<double> rNTmp1(0, 0);
-    complex<double> rNTmp2(0, 0);
-    for (size_t j = 0; j < N / 9; ++j) {
-      rNTmp0 += input[read_start + read_stride * 0 + (3 * j + 0) * read_stride * 3] * factors[j];
-      rNTmp1 += input[read_start + read_stride * 0 + (3 * j + 1) * read_stride * 3] * factors[j];
-      rNTmp2 += input[read_start + read_stride * 0 + (3 * j + 2) * read_stride * 3] * factors[j];
+    // TODO: boundary check
+    vector<complex<double>> dft_buffer(N / FFT_RADIX_3_MIN_N, complex<double>(0.0, 0.0));
+    const size_t split_count = std::log(N / FFT_RADIX_3_MIN_N) / std::log(3);
+    const size_t reorder_count = split_count - 1;
+    vector<complex<double>> new_factors(split_count + 1);
+    vector<size_t> strides(split_count + 1);
+    new_factors[0] = factor2;
+    strides[0] = 1;
+    for (size_t i = 1; i <= split_count; ++i) {
+      new_factors[i] = new_factors[i-1] * new_factors[i-1] * new_factors[i-1];
+      strides[i] = strides[i-1] * 3;
     }
-    rN0 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
-    rNTmp0 = complex<double>(0, 0);
-    rNTmp1 = complex<double>(0, 0);
-    rNTmp2 = complex<double>(0, 0);
-    for (size_t j = 0; j < N / 9; ++j) {
-      rNTmp0 += input[read_start + read_stride * 1 + (3 * j + 0) * read_stride * 3] * factors[j];
-      rNTmp1 += input[read_start + read_stride * 1 + (3 * j + 1) * read_stride * 3] * factors[j];
-      rNTmp2 += input[read_start + read_stride * 1 + (3 * j + 2) * read_stride * 3] * factors[j];
+    for (size_t i = 0; i < dft_buffer.size(); ++i) {
+      complex<double> rNTmp0(0, 0);
+      complex<double> rNTmp1(0, 0);
+      complex<double> rNTmp2(0, 0);
+      for (size_t j = 0; j < FFT_RADIX_3_MIN_N / 3; ++j) {
+        rNTmp0 += input[i + 3 * j * strides[split_count]] * factors[j];
+        rNTmp1 += input[i + (3 * j + 1) * strides[split_count]] * factors[j];
+        rNTmp2 += input[i + (3 * j + 2) * strides[split_count]] * factors[j];
+      }
+      dft_buffer[i] += rNTmp0 + rNTmp1 * new_factors[split_count]
+                     + rNTmp2 * new_factors[split_count] * new_factors[split_count];
     }
-    rN1 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
-    rNTmp0 = complex<double>(0, 0);
-    rNTmp1 = complex<double>(0, 0);
-    rNTmp2 = complex<double>(0, 0);
-    for (size_t j = 0; j < N / 9; ++j) {
-      rNTmp0 += input[read_start + read_stride * 2 + (3 * j + 0) * read_stride * 3] * factors[j];
-      rNTmp1 += input[read_start + read_stride * 2 + (3 * j + 1) * read_stride * 3] * factors[j];
-      rNTmp2 += input[read_start + read_stride * 2 + (3 * j + 2) * read_stride * 3] * factors[j];
+    dft_buffer = radix_reorder<3>(dft_buffer, reorder_count);
+    // TODO: buttom-up
+    size_t old_stride2 = 1;
+    size_t new_stride2 = 3;
+    for (int i = split_count - 1; i >= 0; --i) {
+      for (size_t j = 0; j < N / FFT_RADIX_3_MIN_N / new_stride2; ++j) {
+        std::cout << "Reducing " << j * new_stride2 << " " << j * new_stride2 + old_stride2 * 1 << " " << j * new_stride2 + old_stride2 * 2 << std::endl;
+        if (i == 0) {
+          saved0 = dft_buffer[j * new_stride2];
+          saved1 = dft_buffer[j * new_stride2 + old_stride2 * 1];
+          saved2 = dft_buffer[j * new_stride2 + old_stride2 * 2];
+        }
+        dft_buffer[j * new_stride2] += dft_buffer[j * new_stride2 + old_stride2 * 1] * new_factors[i]
+                                     + dft_buffer[j * new_stride2 + old_stride2 * 2] * new_factors[i] * new_factors[i];
+      }
+      old_stride2 *= 3;
+      new_stride2 *= 3;
     }
-    rN2 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
-    rN = rN0 + rN1 * factor2 + rN2 * factor2 * factor2;
-    saved0 = rN0;
-    saved1 = rN1;
-    saved2 = rN2;
-    return rN;
+//     }
+//     // TODO: make these things iterative
+//     size_t new_stride = read_stride;
+//     complex<double> new_factor2;
+//     complex<double> rNTmp0;
+//     complex<double> rNTmp1;
+//     complex<double> rNTmp2;
+//     {
+//       size_t old_stride = new_stride;
+//       new_stride = new_stride * 3;
+//       new_factor2 = factor2 * factor2 * factor2;
+//       rNTmp0 = complex<double>(0, 0);
+//       rNTmp1 = complex<double>(0, 0);
+//       rNTmp2 = complex<double>(0, 0);
+//       for (size_t j = 0; j < N / 9; ++j) {
+//         rNTmp0 += input[read_start + old_stride * 0 + (3 * j + 0) * new_stride] * factors[j];
+//         rNTmp1 += input[read_start + old_stride * 0 + (3 * j + 1) * new_stride] * factors[j];
+//         rNTmp2 += input[read_start + old_stride * 0 + (3 * j + 2) * new_stride] * factors[j];
+//       }
+//       rN0 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
+//       rNTmp0 = complex<double>(0, 0);
+//       rNTmp1 = complex<double>(0, 0);
+//       rNTmp2 = complex<double>(0, 0);
+//       for (size_t j = 0; j < N / 9; ++j) {
+//         rNTmp0 += input[read_start + old_stride * 1 + (3 * j + 0) * new_stride] * factors[j];
+//         rNTmp1 += input[read_start + old_stride * 1 + (3 * j + 1) * new_stride] * factors[j];
+//         rNTmp2 += input[read_start + old_stride * 1 + (3 * j + 2) * new_stride] * factors[j];
+//       }
+//       rN1 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
+//       rNTmp0 = complex<double>(0, 0);
+//       rNTmp1 = complex<double>(0, 0);
+//       rNTmp2 = complex<double>(0, 0);
+//       for (size_t j = 0; j < N / 9; ++j) {
+//         rNTmp0 += input[read_start + old_stride * 2 + (3 * j + 0) * new_stride] * factors[j];
+//         rNTmp1 += input[read_start + old_stride * 2 + (3 * j + 1) * new_stride] * factors[j];
+//         rNTmp2 += input[read_start + old_stride * 2 + (3 * j + 2) * new_stride] * factors[j];
+//       }
+//       rN2 += rNTmp0 + rNTmp1 * new_factor2 + rNTmp2 * new_factor2 * new_factor2;
+//     }
+//     rN = rN0 + rN1 * factor2 + rN2 * factor2 * factor2;
+//     saved0 = rN0;
+//     saved1 = rN1;
+//     saved2 = rN2;
+    return dft_buffer[0];
   }
 }
 
