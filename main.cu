@@ -322,7 +322,7 @@ void cpu_fft_2() {
 }
 
 void test_radix3() {
-  vector<double> input(2187, 0);
+  vector<double> input(19683, 0);
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> dis(-10,10);
@@ -353,9 +353,11 @@ void test_radix3() {
     auto diff_radix_iterative = output_radix3_iterative[i] - output_dft[i];
     sum1 += diff_radix * std::conj(diff_radix);
     sum2 += diff_radix_iterative * std::conj(diff_radix_iterative);
+#ifdef DEBUG
     std::cout << "i = " << i
               << " ; iterative = " << output_radix3_iterative[i]
               << " ; dft = " << output_dft[i] << std::endl;
+#endif
   }
   std::cout << "Error(recursive): " << sum1.real() << std::endl;
   std::cout << "Error(iterative): " << sum2.real() << std::endl;
