@@ -150,6 +150,89 @@ std::vector<T> radix_reorder(const std::vector<T>& input, size_t count) {
   return output;
 }
 
+class FFTradix3Iterative {
+private:
+  size_t fft_size;
+  size_t num_dft;
+  size_t split_count;
+  vector<complex<double>> dft_buffer;
+  vector<size_t> index_buffer;
+  vector<size_t> strides;
+  vector<complex<double>> new_factors;
+  complex<double> saved0;
+  complex<double> saved1;
+  complex<double> saved2;
+public:
+  FFTradix3Iterative(size_t N);
+  complex<double> operator()(size_t k,
+                             const vector<complex<double>>& input,
+                             const complex<double>& factor2,
+                             const vector<complex<double>>& twiddle_factors);
+  complex<double> getSaved0() const {return saved0;}
+  complex<double> getSaved1() const {return saved1;}
+  complex<double> getSaved2() const {return saved2;}
+};
+
+FFTradix3Iterative::FFTradix3Iterative(size_t N) {
+  fft_size = N;
+  num_dft = std::nearbyint(fft_size / FFT_RADIX_3_MIN_N);
+  split_count = std::nearbyint(std::log(num_dft) / std::log(3));
+  dft_buffer.assign(num_dft, complex<double>(0.0, 0.0));
+  index_buffer.assign(num_dft, 0);
+  std::iota(index_buffer.begin(), index_buffer.end(), 0);
+  index_buffer = radix_reorder<3>(index_buffer, split_count - 1);
+  new_factors.assign(split_count + 1, complex<double>(0.0, 0.0));
+  strides.assign(split_count + 1, 0);
+  strides[0] = 1;
+  for (size_t i = 1; i <= split_count; ++i) {
+    strides[i] = strides[i-1] * 3;
+  }
+}
+
+complex<double> FFTradix3Iterative::operator()(size_t k,
+                                               const vector<complex<double>>& input,
+                                               const complex<double>& factor2,
+                                               const vector<complex<double>>& twiddle_factors) {
+  new_factors[0] = factor2;
+  for (size_t i = 1; i <= split_count; ++i) {
+    new_factors[i] = new_factors[i-1] * new_factors[i-1] * new_factors[i-1];
+  }
+  for (size_t i = 0; i < num_dft; ++i) {
+    complex<double> rNTmp0(0, 0);
+    complex<double> rNTmp1(0, 0);
+    complex<double> rNTmp2(0, 0);
+    for (size_t j = 0; j < FFT_RADIX_3_MIN_N / 3; ++j) {
+#ifdef DEBUG
+      if (k == 1) {
+        std::cout << "i = " << index_buffer[i] << " ; j = " << j
+                  << " ; stride0 = " << index_buffer[i] + 3 * j * strides[split_count]
+                  << " ; input[0] = " << input[index_buffer[i] + 3 * j * strides[split_count]]
+                  << " ; input[1] = " << input[index_buffer[i] + (3 * j + 1) * strides[split_count]]
+                  << " ; input[2] = " << input[index_buffer[i] + (3 * j + 2) * strides[split_count]]
+                  << " ; factors = " << twiddle_factors[j] << std::endl;
+      }
+#endif
+      rNTmp0 += input[i + 3 * j * strides[split_count]] * twiddle_factors[j];
+      rNTmp1 += input[i + (3 * j + 1) * strides[split_count]] * twiddle_factors[j];
+      rNTmp2 += input[i + (3 * j + 2) * strides[split_count]] * twiddle_factors[j];
+    }
+    dft_buffer[index_buffer[i]] = rNTmp0 + rNTmp1 * new_factors[split_count]
+                                + rNTmp2 * new_factors[split_count] * new_factors[split_count];
+  }
+  for (int i = split_count - 1; i >= 0; --i) {
+    for (size_t j = 0; j < fft_size / FFT_RADIX_3_MIN_N / strides[split_count - i]; ++j) {
+      if (i == 0) {
+        saved0 = dft_buffer[j * strides[split_count - i]];
+        saved1 = dft_buffer[j * strides[split_count - i] + strides[split_count - i - 1] * 1];
+        saved2 = dft_buffer[j * strides[split_count - i] + strides[split_count - i - 1] * 2];
+      }
+      dft_buffer[j * strides[split_count - i]] += dft_buffer[j * strides[split_count - i] + strides[split_count - i - 1] * 1] * new_factors[i]
+                                                + dft_buffer[j * strides[split_count - i] + strides[split_count - i - 1] * 2] * new_factors[i] * new_factors[i];
+    }
+  }
+  return dft_buffer[0];
+}
+
 complex<double> fastFourierTransform_radix3_iterative(
   const vector<complex<double>>& input,
   const vector<complex<double>>& factors,
@@ -172,12 +255,11 @@ complex<double> fastFourierTransform_radix3_iterative(
   } else {
     // TODO: boundary check
     const size_t num_dft = std::nearbyint(N / FFT_RADIX_3_MIN_N);
-//     std::cout << "Number of DFTs in iterative radix-3: " << num_dft << std::endl;
+    const size_t split_count = std::nearbyint(std::log(num_dft) / std::log(3));
+    const size_t reorder_count = split_count - 1;
     vector<complex<double>> dft_buffer(num_dft, complex<double>(0.0, 0.0));
     vector<size_t> buffer_index(num_dft, 0);
     std::iota(buffer_index.begin(), buffer_index.end(), 0);
-    const size_t split_count = std::nearbyint(std::log(num_dft) / std::log(3));
-    const size_t reorder_count = split_count - 1;
     vector<complex<double>> new_factors(split_count + 1);
     vector<size_t> strides(split_count + 1);
     buffer_index = radix_reorder<3>(buffer_index, reorder_count);
@@ -215,7 +297,6 @@ complex<double> fastFourierTransform_radix3_iterative(
     size_t new_stride2 = 3;
     for (int i = split_count - 1; i >= 0; --i) {
       for (size_t j = 0; j < N / FFT_RADIX_3_MIN_N / new_stride2; ++j) {
-//         std::cout << "Reducing " << j * new_stride2 << " " << j * new_stride2 + old_stride2 * 1 << " " << j * new_stride2 + old_stride2 * 2 << std::endl;
         if (i == 0) {
           saved0 = dft_buffer[j * new_stride2];
           saved1 = dft_buffer[j * new_stride2 + old_stride2 * 1];
@@ -285,12 +366,16 @@ vector<complex<double>> fastFourierTransform_radix3_iterative(const vector<compl
   complex<double> r0(0, 0);
   complex<double> r1(0, 0);
   complex<double> r2(0, 0);
+  FFTradix3Iterative transformer(N);
   for (size_t k = 0; k < N / 3; ++k) {
     for (size_t i = 0; i < FFT_RADIX_3_MIN_N/3; ++i) {
       factors_table[i] = std::exp(complex<double>(0, -1.0 * i * 2.0 * M_PI * k / (FFT_RADIX_3_MIN_N / 3)));
     }
     const complex<double> factor2 = std::exp(complex<double>(0, -1.0 * 2.0 * M_PI * k / N));
-    result[k] = fastFourierTransform_radix3_iterative(input, factors_table, factor2, k, N, r0, r1, r2);
+    result[k] = transformer(k, input, factor2, factors_table);
+    r0 = transformer.getSaved0();
+    r1 = transformer.getSaved1();
+    r2 = transformer.getSaved2();
     result[k + N / 3] = r0 + r1 * factor2 * f23 + r2 * factor2 * factor2 * f43;
     result[k + 2 * N / 3] = r0 + r1 * factor2 * f43 + r2 * factor2 * factor2 * f83;
   }
