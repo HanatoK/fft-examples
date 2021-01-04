@@ -162,6 +162,9 @@ private:
   complex<double> saved0;
   complex<double> saved1;
   complex<double> saved2;
+  complex<double> rNTmp0;
+  complex<double> rNTmp1;
+  complex<double> rNTmp2;
 public:
   FFTradix3Iterative(size_t N);
   complex<double> operator()(size_t k,
@@ -198,9 +201,9 @@ complex<double> FFTradix3Iterative::operator()(size_t k,
     new_factors[i] = new_factors[i-1] * new_factors[i-1] * new_factors[i-1];
   }
   for (size_t i = 0; i < num_dft; ++i) {
-    complex<double> rNTmp0(0, 0);
-    complex<double> rNTmp1(0, 0);
-    complex<double> rNTmp2(0, 0);
+    rNTmp0 = complex<double>(0, 0);
+    rNTmp1 = complex<double>(0, 0);
+    rNTmp2 = complex<double>(0, 0);
     for (size_t j = 0; j < FFT_RADIX_3_MIN_N / 3; ++j) {
 #ifdef DEBUG
       if (k == 1) {
